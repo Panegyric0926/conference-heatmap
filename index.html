@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>会议热力图分析</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+            font-size: 2.5rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .upload-section {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+
+        .upload-section h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.3rem;
+        }
+
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #f8f9ff;
+        }
+
+        .upload-area:hover {
+            background: #eef0ff;
+            border-color: #764ba2;
+        }
+
+        .upload-area.dragover {
+            background: #e0e4ff;
+            border-color: #764ba2;
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+        }
+
+        .upload-text {
+            color: #666;
+            font-size: 1.1rem;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .format-hint {
+            margin-top: 20px;
+            padding: 15px;
+            background: #fff3cd;
+            border-radius: 8px;
+            color: #856404;
+            font-size: 0.9rem;
+        }
+
+        .format-hint strong {
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .heatmap-section {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            display: none;
+        }
+
+        .heatmap-section.show {
+            display: block;
+        }
+
+        .heatmap-section h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+        }
+
+        .stats-row {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .stat-card {
+            flex: 1;
+            min-width: 150px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .stat-card .number {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+
+        .stat-card .label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .heatmap-container {
+            overflow-x: auto;
+        }
+
+        .heatmap-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .heatmap-table th,
+        .heatmap-table td {
+            padding: 12px 8px;
+            text-align: center;
+            border: 1px solid #e0e0e0;
+            min-width: 80px;
+        }
+
+        .heatmap-table th {
+            background: #f5f5f5;
+            font-weight: 600;
+            color: #333;
+            position: sticky;
+            top: 0;
+        }
+
+        .heatmap-table th:first-child {
+            position: sticky;
+            left: 0;
+            z-index: 2;
+        }
+
+        .heatmap-table td:first-child {
+            background: #f9f9f9;
+            font-weight: 500;
+            position: sticky;
+            left: 0;
+        }
+
+        .heatmap-cell {
+            border-radius: 6px;
+            padding: 8px;
+            min-height: 40px;
+            transition: transform 0.2s;
+        }
+
+        .heatmap-cell:hover {
+            transform: scale(1.05);
+        }
+
+        .heat-0 { background: #f5f5f5; }
+        .heat-1 { background: #c6dbef; }
+        .heat-2 { background: #9ecae1; }
+        .heat-3 { background: #6baed6; }
+        .heat-4 { background: #4292c6; }
+        .heat-5 { background: #2171b5; color: white; }
+        .heat-6 { background: #084594; color: white; }
+
+        .legend {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-top: 30px;
+            flex-wrap: wrap;
+        }
+
+        .legend-label {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .legend-colors {
+            display: flex;
+            gap: 2px;
+        }
+
+        .legend-color {
+            width: 30px;
+            height: 20px;
+            border-radius: 3px;
+        }
+
+        .org-section {
+            margin-top: 40px;
+        }
+
+        .org-section h3 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.3rem;
+        }
+
+        .org-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .org-card {
+            background: #f8f9ff;
+            border-radius: 10px;
+            padding: 15px;
+            border-left: 4px solid #667eea;
+        }
+
+        .org-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .org-count {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .tooltip {
+            position: absolute;
+            background: #333;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            pointer-events: none;
+            z-index: 100;
+            max-width: 250px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            display: none;
+        }
+
+        .tooltip.show {
+            display: block;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 1.8rem;
+            }
+            
+            .stats-row {
+                flex-direction: column;
+            }
+            
+            .stat-card {
+                min-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 会议热力图分析</h1>
+        
+        <div class="upload-section">
+            <h2>📁 上传数据文件</h2>
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon">📄</div>
+                <div class="upload-text">点击此处或拖拽CSV文件到这里上传</div>
+                <input type="file" id="fileInput" accept=".csv">
+            </div>
+            <div class="format-hint">
+                <strong>📋 文件格式说明：</strong>
+                每行格式：日期,时间,组织名称<br>
+                示例：20250926,15,例会<br>
+                时间可以是整数（如15）或带分钟（如10:30或10：30）
+            </div>
+        </div>
+
+        <div class="heatmap-section" id="heatmapSection">
+            <h2>📈 会议热力图</h2>
+            
+            <div class="stats-row" id="statsRow">
+                <!-- 统计卡片将在这里动态生成 -->
+            </div>
+
+            <div class="heatmap-container">
+                <table class="heatmap-table" id="heatmapTable">
+                    <!-- 热力图将在这里动态生成 -->
+                </table>
+            </div>
+
+            <div class="legend">
+                <span class="legend-label">会议次数：少</span>
+                <div class="legend-colors">
+                    <div class="legend-color heat-0"></div>
+                    <div class="legend-color heat-1"></div>
+                    <div class="legend-color heat-2"></div>
+                    <div class="legend-color heat-3"></div>
+                    <div class="legend-color heat-4"></div>
+                    <div class="legend-color heat-5"></div>
+                    <div class="legend-color heat-6"></div>
+                </div>
+                <span class="legend-label">多</span>
+            </div>
+
+            <div class="org-section">
+                <h3>🏢 各组织会议统计</h3>
+                <div class="org-grid" id="orgGrid">
+                    <!-- 组织统计将在这里动态生成 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+        // 星期名称
+        const weekdayNames = ['周一', '周二', '周三', '周四', '周五'];
+        
+        // 时间段
+        const timeSlots = [];
+        for (let h = 8; h <= 18; h++) {
+            timeSlots.push(`${h}:00`);
+            if (h < 18) {
+                timeSlots.push(`${h}:30`);
+            }
+        }
+
+        // 上传区域交互
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+
+        uploadArea.addEventListener('click', () => fileInput.click());
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                processFile(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                processFile(e.target.files[0]);
+            }
+        });
+
+        // 处理文件
+        function processFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                let content = e.target.result;
+                // 替换中文冒号为英文冒号
+                content = content.replace(/：/g, ':');
+                parseAndDisplay(content);
+            };
+            reader.readAsText(file, 'UTF-8');
+        }
+
+        // 解析CSV并显示
+        function parseAndDisplay(content) {
+            const lines = content.trim().split('\n');
+            const meetings = [];
+
+            lines.forEach(line => {
+                const parts = line.split(',');
+                if (parts.length >= 3) {
+                    const dateStr = parts[0].trim();
+                    const timeStr = parts[1].trim();
+                    const org = parts[2].trim();
+
+                    // 解析日期 (yyyymmdd)
+                    if (dateStr.length === 8) {
+                        const year = parseInt(dateStr.substring(0, 4));
+                        const month = parseInt(dateStr.substring(4, 6)) - 1;
+                        const day = parseInt(dateStr.substring(6, 8));
+                        const date = new Date(year, month, day);
+                        const weekday = date.getDay(); // 0=周日, 1=周一, ..., 5=周五, 6=周六
+
+                        // 只处理工作日 (周一到周五)
+                        if (weekday >= 1 && weekday <= 5) {
+                            // 解析时间
+                            const timeParts = timeStr.split(':');
+                            let hour = parseInt(timeParts[0]);
+                            let minute = timeParts.length > 1 ? parseInt(timeParts[1]) : 0;
+
+                            // 将时间归入最近的时间段
+                            const roundedTime = roundToTimeSlot(hour, minute);
+
+                            meetings.push({
+                                date: date,
+                                weekday: weekday - 1, // 0=周一, ..., 4=周五
+                                time: roundedTime,
+                                hour: hour,
+                                minute: minute,
+                                org: org,
+                                dateStr: dateStr
+                            });
+                        }
+                    }
+                }
+            });
+
+            displayHeatmap(meetings);
+        }
+
+        // 将时间归入最近的时间段
+        function roundToTimeSlot(hour, minute) {
+            if (minute < 15) {
+                return `${hour}:00`;
+            } else if (minute < 45) {
+                return `${hour}:30`;
+            } else {
+                return `${hour + 1}:00`;
+            }
+        }
+
+        // 显示热力图
+        function displayHeatmap(meetings) {
+            const heatmapSection = document.getElementById('heatmapSection');
+            heatmapSection.classList.add('show');
+
+            // 计算统计数据
+            const totalMeetings = meetings.length;
+            const uniqueOrgs = [...new Set(meetings.map(m => m.org))];
+            const uniqueDates = [...new Set(meetings.map(m => m.dateStr))];
+
+            // 显示统计卡片
+            const statsRow = document.getElementById('statsRow');
+            statsRow.innerHTML = `
+                <div class="stat-card">
+                    <div class="number">${totalMeetings}</div>
+                    <div class="label">总会议次数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="number">${uniqueOrgs.length}</div>
+                    <div class="label">参会组织数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="number">${uniqueDates.length}</div>
+                    <div class="label">会议日期数</div>
+                </div>
+            `;
+
+            // 构建热力图数据
+            const heatmapData = {};
+            let maxCount = 0;
+
+            timeSlots.forEach(time => {
+                heatmapData[time] = {};
+                weekdayNames.forEach((_, idx) => {
+                    heatmapData[time][idx] = { count: 0, orgs: [] };
+                });
+            });
+
+            meetings.forEach(m => {
+                if (heatmapData[m.time] && heatmapData[m.time][m.weekday]) {
+                    heatmapData[m.time][m.weekday].count++;
+                    heatmapData[m.time][m.weekday].orgs.push(m.org);
+                    maxCount = Math.max(maxCount, heatmapData[m.time][m.weekday].count);
+                }
+            });
+
+            // 生成热力图表格
+            const table = document.getElementById('heatmapTable');
+            let html = '<thead><tr><th>时间</th>';
+            weekdayNames.forEach(name => {
+                html += `<th>${name}</th>`;
+            });
+            html += '</tr></thead><tbody>';
+
+            timeSlots.forEach(time => {
+                html += `<tr><td>${time}</td>`;
+                weekdayNames.forEach((_, idx) => {
+                    const data = heatmapData[time][idx];
+                    const heatLevel = getHeatLevel(data.count, maxCount);
+                    const orgsText = data.orgs.length > 0 ? data.orgs.join('、') : '';
+                    html += `<td>
+                        <div class="heatmap-cell heat-${heatLevel}" 
+                             data-time="${time}" 
+                             data-weekday="${weekdayNames[idx]}"
+                             data-count="${data.count}"
+                             data-orgs="${orgsText}"
+                             onmouseenter="showTooltip(event, this)"
+                             onmouseleave="hideTooltip()">
+                            ${data.count > 0 ? data.count : ''}
+                        </div>
+                    </td>`;
+                });
+                html += '</tr>';
+            });
+            html += '</tbody>';
+            table.innerHTML = html;
+
+            // 显示组织统计
+            const orgCounts = {};
+            meetings.forEach(m => {
+                orgCounts[m.org] = (orgCounts[m.org] || 0) + 1;
+            });
+
+            const sortedOrgs = Object.entries(orgCounts)
+                .sort((a, b) => b[1] - a[1]);
+
+            const orgGrid = document.getElementById('orgGrid');
+            orgGrid.innerHTML = sortedOrgs.map(([org, count]) => `
+                <div class="org-card">
+                    <div class="org-name">${org}</div>
+                    <div class="org-count">共 ${count} 次会议</div>
+                </div>
+            `).join('');
+
+            // 滚动到热力图
+            heatmapSection.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // 计算热力等级
+        function getHeatLevel(count, maxCount) {
+            if (count === 0) return 0;
+            if (maxCount === 0) return 0;
+            const ratio = count / maxCount;
+            if (ratio <= 0.15) return 1;
+            if (ratio <= 0.30) return 2;
+            if (ratio <= 0.45) return 3;
+            if (ratio <= 0.60) return 4;
+            if (ratio <= 0.80) return 5;
+            return 6;
+        }
+
+        // 显示提示框
+        function showTooltip(event, element) {
+            const tooltip = document.getElementById('tooltip');
+            const time = element.dataset.time;
+            const weekday = element.dataset.weekday;
+            const count = element.dataset.count;
+            const orgs = element.dataset.orgs;
+
+            if (count === '0') {
+                tooltip.innerHTML = `${weekday} ${time}<br>暂无会议`;
+            } else {
+                tooltip.innerHTML = `<strong>${weekday} ${time}</strong><br>会议次数：${count}<br>组织：${orgs}`;
+            }
+
+            tooltip.classList.add('show');
+            
+            const rect = element.getBoundingClientRect();
+            tooltip.style.left = (rect.left + window.scrollX + rect.width / 2 - tooltip.offsetWidth / 2) + 'px';
+            tooltip.style.top = (rect.top + window.scrollY - tooltip.offsetHeight - 10) + 'px';
+        }
+
+        // 隐藏提示框
+        function hideTooltip() {
+            const tooltip = document.getElementById('tooltip');
+            tooltip.classList.remove('show');
+        }
+    </script>
+</body>
+</html>
