@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>会议热力图分析</title>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -296,11 +297,12 @@
             <h2>📁 上传数据文件</h2>
             <div class="upload-area" id="uploadArea">
                 <div class="upload-icon">📄</div>
-                <div class="upload-text">点击此处或拖拽CSV文件到这里上传</div>
-                <input type="file" id="fileInput" accept=".csv">
+                <div class="upload-text">点击此处或拖拽 CSV 或 Excel 文件到这里上传</div>
+                <input type="file" id="fileInput" accept=".csv,.xlsx,.xls">
             </div>
             <div class="format-hint">
                 <strong>📋 文件格式说明：</strong>
+                支持 CSV 和 Excel（.xlsx/.xls）文件<br>
                 每行格式：日期,时间,组织名称<br>
                 示例：20250926,15,例会<br>
                 时间可以是整数（如15）或带分钟（如10:30或10：30）
@@ -390,14 +392,33 @@
 
         // 处理文件
         function processFile(file) {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                let content = e.target.result;
-                // 替换中文冒号为英文冒号
-                content = content.replace(/：/g, ':');
-                parseAndDisplay(content);
-            };
-            reader.readAsText(file, 'UTF-8');
+            const fileName = file.name.toLowerCase();
+            const isExcel = fileName.endsWith('.xlsx') || fileName.endsWith('.xls');
+
+            if (isExcel) {
+                // 处理 Excel 文件
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    let csvContent = XLSX.utils.sheet_to_csv(firstSheet);
+                    // 替换中文冒号为英文冒号
+                    csvContent = csvContent.replace(/：/g, ':');
+                    parseAndDisplay(csvContent);
+                };
+                reader.readAsArrayBuffer(file);
+            } else {
+                // 处理 CSV 文件
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    let content = e.target.result;
+                    // 替换中文冒号为英文冒号
+                    content = content.replace(/：/g, ':');
+                    parseAndDisplay(content);
+                };
+                reader.readAsText(file, 'UTF-8');
+            }
         }
 
         // 解析CSV并显示
